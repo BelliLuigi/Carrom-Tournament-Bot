@@ -19,7 +19,14 @@ logger = logging.getLogger(__name__)
 STEP1, STEP2, STEP3, STEP4,STEP5 = range(5)
 MATCH, STATS = range(2)
 
-
+def database_connection():
+    db = mysql.connector.connect(
+        host=os.getenv("DB_HOST"),
+        user=os.getenv("DB_USER"),
+        password=os.getenv("DB_PASSWORD"),
+        database=os.getenv("DB_NAME")
+    )
+    return db, db.cursor()
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
@@ -105,6 +112,8 @@ async def they_points(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     return STEP5
 
+
+
 async def confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     user = context.user_data.get("user")
@@ -113,29 +122,25 @@ async def confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(text="Match cancelled.\n\nPress /start to start again.")
         return ConversationHandler.END
     else:
-        # Confirm the match
-        db = mysql.connector.connect(
-            host=os.getenv("DB_HOST"),
-            user=os.getenv("DB_USER"),
-            password=os.getenv("DB_PASSWORD"),
-            database=os.getenv("DB_NAME")
-        )
-        cursor = db.cursor()
+        db, cursor = database_connection()
         sql = "INSERT INTO matches (player1, player2, score1, score2) VALUES (%s, %s, %s, %s)"
         val = (user.first_name, context.chat_data['opponent'], context.chat_data['me_points'], context.chat_data['they_points'])
         cursor.execute(sql, val)
         db.commit()
         await query.edit_message_text(text="Match Confirmed!\n\nPress /start to start again.")
         logger.info("Match confirmed: %s vs %s - %s : %s", user.first_name, context.chat_data['opponent'], context.chat_data['me_points'], context.chat_data['they_points'])
+        cursor.close()
+        db.close()
         return ConversationHandler.END
+
+
 
 async def stats():
     return None
 if __name__ == '__main__':
     load_dotenv('dbdocker.env')
     application = Application.builder().token(os.getenv('THE_HOLY_TOKEN')).build()
-        #os.getenv('$CARROM_APIKEY')).build()
-    
+    db, cursor = database_connection()
     convo_handler = ConversationHandler(
         entry_points = [CommandHandler("start", start)],
         states = {
@@ -158,8 +163,5 @@ if __name__ == '__main__':
         },
         fallbacks=[CommandHandler("start", start)],
     )
-     # Add ConversationHandler to application that will be used for handling updates
     application.add_handler(convo_handler)
-
-    # Run the bot until the user presses Ctrl-C
     application.run_polling(allowed_updates=Update.ALL_TYPES)
