@@ -31,6 +31,11 @@ def database_connection():
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     context.user_data["user"] = user
+    db, cursor = database_connection()
+    cursor.execute("INSERT INTO users (username) VALUES (%s) ON DUPLICATE KEY UPDATE username=username", (user.first_name,))
+    db.commit()
+    cursor.close()
+    db.close()
     logger.info("User %s (%s) started the conversation.", user.first_name, user.id)
     keyboard = [
         [
@@ -39,6 +44,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.message.reply_text("Remember that your oppponent should also be a user of this bot.\n\n")
     await update.message.reply_text(f"Hi {user.first_name}, just did a match?", reply_markup=reply_markup)
     return STEP1
 
@@ -47,7 +53,15 @@ async def match(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     logger.info("User %s (%s) selected 'Register match'", user.first_name, user.id)
-    list_of_opponents = ['list','of', 'opponents', 'that', 'are', 'available', 'for', 'the', 'match']
+    db, cursor = database_connection()
+    cursor.execute("SELECT username FROM users")
+    oppos = cursor.fetchall()
+    cursor.close()
+    db.close()
+    list_of_opponents = [opponent[0] for opponent in oppos if opponent[0] != user.first_name]
+    if not list_of_opponents:
+        await query.edit_message_text(text="No users found. Please register at least one user before starting a match.")
+        return ConversationHandler.END
     keyboard = [
         [InlineKeyboardButton(opponent, callback_data=opponent) for opponent in list_of_opponents[0:4]],
         [InlineKeyboardButton(opponent, callback_data=opponent) for opponent in list_of_opponents[4:8]],
@@ -146,7 +160,6 @@ if __name__ == '__main__':
         states = {
             STEP1: [
                 CallbackQueryHandler(match, pattern = "^" + str(MATCH) + "$"),
-                #CallbackQueryHandler(select_opponent, pattern = "^"+ str(POINTS) + "$")
                 ],
             STEP2: [
                 CallbackQueryHandler(select_opponent, pattern = "[a-zA-Z0-9_]+")
