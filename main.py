@@ -1,4 +1,6 @@
 import logging
+import mysql.connector
+from dotenv import load_dotenv
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import (
     Application,
@@ -19,12 +21,10 @@ MATCH, STATS = range(2)
 
 
 
-async def start(update: Update, 
-                context: ContextTypes.DEFAULT_TYPE):
-    #GLOBAL user
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     context.user_data["user"] = user
-    logger.info("user %s started the conversation.", user.first_name)
+    logger.info("User %s (%s) started the conversation.", user.first_name, user.id)
     keyboard = [
         [
             InlineKeyboardButton(u'Register match ✏️', callback_data=MATCH),
@@ -35,11 +35,11 @@ async def start(update: Update,
     await update.message.reply_text(f"Hi {user.first_name}, just did a match?", reply_markup=reply_markup)
     return STEP1
 
-async def match(update: Update, context:ContextTypes.DEFAULT_TYPE):
-    # Is step 1
+async def match(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = context.user_data.get("user")
     query = update.callback_query
     await query.answer()
+    logger.info("User %s (%s) selected 'Register match'", user.first_name, user.id)
     list_of_opponents = ['list','of', 'opponents', 'that', 'are', 'available', 'for', 'the', 'match']
     keyboard = [
         [InlineKeyboardButton(opponent, callback_data=opponent) for opponent in list_of_opponents[0:4]],
@@ -95,8 +95,6 @@ async def they_points(update: Update, context: ContextTypes.DEFAULT_TYPE):
     points = int(query.data)
     context.chat_data["they_points"] = points
     logger.info("User %s selected opponent: %s. Points %s - ?", user.first_name, context.chat_data['me_points'], points)
-    
-    # Here you can add logic to save the match data or process it further
     keyboard = [
         InlineKeyboardButton(u'⛔ Cancel 🔙', callback_data='cancel'),
         InlineKeyboardButton(u'✅ Confirm 💾', callback_data='confirm')
@@ -112,18 +110,30 @@ async def confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = context.user_data.get("user")
     await query.answer()
     if query.data == 'cancel':
-        await query.edit_message_text(text="Match cancelled.")
+        await query.edit_message_text(text="Match cancelled.\n\nPress /start to start again.")
         return ConversationHandler.END
     else:
-        # Confirm the match       
-        await query.edit_message_text(text="Match Confirmed!")
+        # Confirm the match
+        db = mysql.connector.connect(
+            host=os.getenv("DB_HOST"),
+            user=os.getenv("DB_USER"),
+            password=os.getenv("DB_PASSWORD"),
+            database=os.getenv("DB_NAME")
+        )
+        cursor = db.cursor()
+        sql = "INSERT INTO matches (player1, player2, score1, score2) VALUES (%s, %s, %s, %s)"
+        val = (user.first_name, context.chat_data['opponent'], context.chat_data['me_points'], context.chat_data['they_points'])
+        cursor.execute(sql, val)
+        db.commit()
+        await query.edit_message_text(text="Match Confirmed!\n\nPress /start to start again.")
         logger.info("Match confirmed: %s vs %s - %s : %s", user.first_name, context.chat_data['opponent'], context.chat_data['me_points'], context.chat_data['they_points'])
         return ConversationHandler.END
 
 async def stats():
     return None
 if __name__ == '__main__':
-    application = Application.builder().token('THE HOLY TOKEN').build()
+    load_dotenv('dbdocker.env')
+    application = Application.builder().token(os.getenv('THE_HOLY_TOKEN')).build()
         #os.getenv('$CARROM_APIKEY')).build()
     
     convo_handler = ConversationHandler(
