@@ -1,0 +1,155 @@
+import logging
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.ext import (
+    Application,
+    CallbackQueryHandler,
+    CommandHandler,
+    ContextTypes,
+    ConversationHandler)
+import os
+
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+                    level=logging.INFO)
+logging.getLogger("httpx").setLevel(logging.WARNING)
+
+logger = logging.getLogger(__name__)
+
+STEP1, STEP2, STEP3, STEP4,STEP5 = range(5)
+MATCH, STATS = range(2)
+
+
+
+async def start(update: Update, 
+                context: ContextTypes.DEFAULT_TYPE):
+    #GLOBAL user
+    user = update.message.from_user
+    context.user_data["user"] = user
+    logger.info("user %s started the conversation.", user.first_name)
+    keyboard = [
+        [
+            InlineKeyboardButton(u'Register match ✏️', callback_data=MATCH),
+            InlineKeyboardButton(u'Stats 📊', callback_data=STATS)
+        ]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.message.reply_text(f"Hi {user.first_name}, just did a match?", reply_markup=reply_markup)
+    return STEP1
+
+async def match(update: Update, context:ContextTypes.DEFAULT_TYPE):
+    # Is step 1
+    user = context.user_data.get("user")
+    query = update.callback_query
+    await query.answer()
+    list_of_opponents = ['list','of', 'opponents', 'that', 'are', 'available', 'for', 'the', 'match']
+    keyboard = [
+        [InlineKeyboardButton(opponent, callback_data=opponent) for opponent in list_of_opponents[0:4]],
+        [InlineKeyboardButton(opponent, callback_data=opponent) for opponent in list_of_opponents[4:8]],
+        [InlineKeyboardButton(opponent, callback_data=opponent) for opponent in list_of_opponents[8:12]],
+        [InlineKeyboardButton(opponent, callback_data=opponent) for opponent in list_of_opponents[12:16]],
+        [InlineKeyboardButton(u'⛔ Back 🔙', callback_data='cancel')]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await query.edit_message_text(
+        text=f"Hey {user.first_name}, choose your opponent:", reply_markup=reply_markup
+    )
+    return STEP2
+
+async def select_opponent(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    user = context.user_data.get("user")
+    await query.answer()
+    context.chat_data["opponent"] = query.data
+    await query.edit_message_text(text=f"{user.first_name}, you chose {query.data}!")
+    logger.info("User %s selected opponent: %s", user.first_name, query.data)
+    keyboard = [
+        [InlineKeyboardButton(str(i), callback_data=i) for i in range(7)],
+        [InlineKeyboardButton(str(i), callback_data=i) for i in range(7, 13)]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await query.edit_message_text(text=f"Points for {user.first_name}?", reply_markup=reply_markup)
+    
+    return STEP3
+
+async def me_points(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = context.user_data.get("user")
+    query = update.callback_query
+    await query.answer()
+    points = int(query.data)
+    context.chat_data["me_points"] = points
+    logger.info("User %s selected opponent: %s. Points %s - ?", user.first_name, query.data, points)
+    keyboard = [
+        [InlineKeyboardButton(str(i), callback_data=i) for i in range(7)],
+        [InlineKeyboardButton(str(i), callback_data=i) for i in range(7, 13)]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await query.edit_message_text(
+        text=f"{user.first_name}, you scored {points} points!,\nSelect points for {context.chat_data['opponent']}.",
+         reply_markup=reply_markup)
+    return STEP4
+
+async def they_points(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    user = context.user_data.get("user")
+    opponent = context.chat_data.get("opponent")
+    await query.answer()
+    points = int(query.data)
+    context.chat_data["they_points"] = points
+    logger.info("User %s selected opponent: %s. Points %s - ?", user.first_name, context.chat_data['me_points'], points)
+    
+    # Here you can add logic to save the match data or process it further
+    keyboard = [
+        InlineKeyboardButton(u'⛔ Cancel 🔙', callback_data='cancel'),
+        InlineKeyboardButton(u'✅ Confirm 💾', callback_data='confirm')
+    ]
+    reply_markup = InlineKeyboardMarkup([keyboard])
+    await query.edit_message_text(text=f"Match: {user.first_name} vs {context.chat_data['opponent']} - {context.chat_data['me_points']} : {context.chat_data['they_points']}",
+                                    reply_markup=reply_markup)
+    
+    return STEP5
+
+async def confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    user = context.user_data.get("user")
+    await query.answer()
+    if query.data == 'cancel':
+        await query.edit_message_text(text="Match cancelled.")
+        return ConversationHandler.END
+    else:
+        # Confirm the match       
+        await query.edit_message_text(text="Match Confirmed!")
+        logger.info("Match confirmed: %s vs %s - %s : %s", user.first_name, context.chat_data['opponent'], context.chat_data['me_points'], context.chat_data['they_points'])
+        return ConversationHandler.END
+
+async def stats():
+    return None
+if __name__ == '__main__':
+    application = Application.builder().token('THE HOLY TOKEN').build()
+        #os.getenv('$CARROM_APIKEY')).build()
+    
+    convo_handler = ConversationHandler(
+        entry_points = [CommandHandler("start", start)],
+        states = {
+            STEP1: [
+                CallbackQueryHandler(match, pattern = "^" + str(MATCH) + "$"),
+                #CallbackQueryHandler(select_opponent, pattern = "^"+ str(POINTS) + "$")
+                ],
+            STEP2: [
+                CallbackQueryHandler(select_opponent, pattern = "[a-zA-Z0-9_]+")
+            ],
+            STEP3: [
+                CallbackQueryHandler(me_points, pattern = "[0-9]+")
+            ],
+            STEP4: [
+                CallbackQueryHandler(they_points, pattern = "[0-9]+")
+            ],
+            STEP5: [
+                CallbackQueryHandler(confirm, pattern = "^(confirm|cancel)$")
+            ]
+        },
+        fallbacks=[CommandHandler("start", start)],
+    )
+     # Add ConversationHandler to application that will be used for handling updates
+    application.add_handler(convo_handler)
+
+    # Run the bot until the user presses Ctrl-C
+    application.run_polling(allowed_updates=Update.ALL_TYPES)
