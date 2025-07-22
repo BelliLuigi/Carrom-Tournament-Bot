@@ -2,6 +2,11 @@
 
 ### A Telegram bot to keep track of Carrom tournament points
 
+Carrom is an incredible game that shares some mechanics with pool. My roommates and I spent a couple of months playing it day and night, recording every match on a large
+sheet of paper to determine the winner of the month. But at the end of the month, nobody wanted to calculate all the stats by hand. So, eight months after we stopped
+playing, I developed a bot that you can use to record your matches and get stats for every player.
+
+To-Do: Add more stats (like our made-up  "grado smerdatico medio"), optimize navigation, and create a simple deployment process for everyone.
 
 #### What am i doing?
 
