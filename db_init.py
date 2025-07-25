@@ -10,21 +10,12 @@ db = mysql.connector.connect(
     )
 cursor = db.cursor()
 
-cursor.execute("DROP DATABASE IF EXISTS carrom")
-db.commit()
 cursor.execute("CREATE DATABASE IF NOT EXISTS carrom")
 db.commit()
 cursor.execute("USE carrom")
 db.commit()
 cursor.execute("CREATE TABLE IF NOT EXISTS users (username VARCHAR(60) NOT NULL UNIQUE)")
 db.commit()
-cursor.execute("INSERT INTO users (username) VALUES ('MarcoPolo')")
-cursor.execute("INSERT INTO users (username) VALUES ('franco126')")
-db.commit()
 cursor.execute("CREATE TABLE IF NOT EXISTS matches (player1 VARCHAR(60) NOT NULL, player2 VARCHAR(60) NOT NULL, score1 INT NOT NULL, score2 INT NOT NULL, PRIMARY KEY (player1, player2))")
 db.commit()
-sql = "INSERT INTO matches (player1, player2, score1, score2) VALUES (%s, %s, %s, %s)"
-val = ("carlo", "franco", 7, 6)
-cursor.execute(sql, val)
-db.commit()
-db.close
+db.close()

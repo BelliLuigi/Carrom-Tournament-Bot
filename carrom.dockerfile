@@ -1,4 +1,4 @@
-FROM mysql:latest
+FROM mysql:9.4.0
 ENV MYSQL_ROOT_PASSWORD=password
 ENV MYSQL_DATABASE=carrom
-COPY ./MySQL_solutions.ipynb /docker-entrypoint-initdb.d/
+

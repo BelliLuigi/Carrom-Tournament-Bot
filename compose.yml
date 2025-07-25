@@ -1,0 +1,39 @@
+services:
+  carrom-db:
+    build:
+      context: .
+      dockerfile: carrom.dockerfile
+    container_name: carrom-db
+    restart: always
+    volumes:
+      - db-data:/var/lib/mysql
+    networks:
+      - carrom-network
+    healthcheck:
+      test: ["CMD", "mysqladmin" ,"ping", "-h", "localhost", "-uroot", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  bot:
+    build:
+      context: .
+      dockerfile: bot.dockerfile
+    container_name: carrom-bot
+    restart: always
+    env_file:
+      - dbdocker.env
+    depends_on:
+      carrom-db:
+        condition: service_healthy
+    networks:
+      - carrom-network
+    command: >
+      sh -c "python /app/db_init.py && python /app/main.py"
+
+networks:
+  carrom-network:
+    driver: bridge
+
+volumes:
+  db-data:

@@ -6,9 +6,23 @@ Carrom is an incredible game that shares some mechanics with pool. My roommates 
 sheet of paper to determine the winner of the month. But at the end of the month, nobody wanted to calculate all the stats by hand. So, eight months after we stopped
 playing, I developed a bot that you can use to record your matches and get stats for every player.
 
-To-Do: Add more stats (like our made-up  "grado smerdatico medio"), optimize navigation, and create a simple deployment process for everyone.
+#### How to use:
+- Make yourself a telegram bot using the Botfather, get your API KEY.
+- Install Docker on your machine
+- Clone this repo. Move into the repo directory. 
+- Replace your API KEY in `db_init.py`
+- Run: `docker compose up`
+- The bot should be running
+
+##### Future updates
+
+Add more stats (like our made-up  "grado smerdatico medio"), optimize navigation, and create a simple deployment process for everyone.
 
 #### What am i doing?
+
+*25/07/2025* : Deployment done(?)
+
+*25/07/2025* : The bot is done. Did "go back" work. Graphical will be added in next times.
 
 *22/07/2025*: The bot works. I need to add the "go back" button and make it work, add some stats, make it output graphical stats, but the bare structure is done.
 

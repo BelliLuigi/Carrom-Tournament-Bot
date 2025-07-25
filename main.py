@@ -79,6 +79,9 @@ async def select_opponent(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     user = context.user_data.get("user")
     await query.answer()
+    if query.data == 'cancel':
+        await query.edit_message_text(text="Selection cancelled. Press /start to interact again")
+        return ConversationHandler.END
     context.chat_data["opponent"] = query.data
     await query.edit_message_text(text=f"{user.first_name}, you chose {query.data}!")
     logger.info("User %s selected opponent: %s", user.first_name, query.data)
@@ -161,7 +164,7 @@ async def sel_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     db.close()
     keyboard = [
         [InlineKeyboardButton(user[0], callback_data=user[0]) for user in users],
-        [InlineKeyboardButton(u'⛔ Back 🔙', callback_data='cancel')]
+        [InlineKeyboardButton(u'⛔ Cancel 🔙', callback_data='cancel')]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     await query.edit_message_text(
@@ -172,25 +175,32 @@ async def sel_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def user_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    db, cursor = database_connection()
-    cursor.execute(f"SELECT player1, score1 FROM matches WHERE player1 = '{query.data}'")
-    a = cursor.fetchall()
-    cursor.execute(f"SELECT player2, score2 FROM matches WHERE player2 = '{query.data}'")
-    b = cursor.fetchall()
-    N_games = len(a+b)
-    mean = sum(x[1] for x in a+b) / N_games
-    std = (sum((x[1] - mean) ** 2 for x in a+b) / N_games) ** 0.5
-    await update.effective_chat.send_message(
-        f"Stats for {query.data}:\n"
-        f"Total games: {N_games}\n"
-        f"Mean score: {mean:.2f}\n"
-        f"Standard deviation: {std:.2f}"
-    )
-    cursor.close()
-    db.close()
-    logger.info("User %s requested stats for %s", context.user_data.get("user").first_name, query.data)
+    if query.data == 'cancel':
+        await query.edit_message_text( text="Request cancelled. Press /start to interact again")
+        return ConversationHandler.END
+    else:
+        db, cursor = database_connection()
+        cursor.execute(f"SELECT player1, score1 FROM matches WHERE player1 = '{query.data}'")
+        a = cursor.fetchall()
+        cursor.execute(f"SELECT player2, score2 FROM matches WHERE player2 = '{query.data}'")
+        b = cursor.fetchall()
+        N_games = len(a+b)
+        if N_games == 0:
+            N_games = 1
+        mean = sum(x[1] for x in a+b) / N_games # whatch otut for division by zero
+        std = (sum((x[1] - mean) ** 2 for x in a+b) / N_games) ** 0.5
+        await update.effective_chat.send_message(
+            f"Stats for {query.data}:\n"
+            f"Total games: {N_games}\n"
+            f"Mean score: {mean:.2f}\n"
+            f"Standard deviation: {std:.2f}\n\n"
+            f"Press /start to interact again"
+        )
+        cursor.close()
+        db.close()
+        logger.info("User %s requested stats for %s", context.user_data.get("user").first_name, query.data)
 
-    return ConversationHandler.END
+        return ConversationHandler.END
 
 if __name__ == '__main__':
     load_dotenv('dbdocker.env')
